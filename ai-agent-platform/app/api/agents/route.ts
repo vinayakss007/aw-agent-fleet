@@ -1,125 +1,107 @@
 import { NextRequest, NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { db } from "@/lib/db";
+import { getUserFromRequest } from "@/lib/auth";
+import { Agent } from "@/lib/types";
+import { v4 as uuidv4 } from "uuid";
 
-const CUSTOMERS_DIR = path.join(process.env.HOME || "/root", ".abetworks", "customers");
-
-// GET /api/agents - List all agents for a customer
+// GET /api/agents — list agents
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const customerId = searchParams.get("customer_id");
+  const user = getUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!customerId) {
-      return NextResponse.json(
-        { error: "customer_id required" },
-        { status: 400 }
-      );
-    }
+  const { searchParams } = new URL(request.url);
+  const customerId = searchParams.get("customer_id");
 
-    const customerDir = path.join(CUSTOMERS_DIR, customerId, "agents");
-    
-    try {
-      const files = await fs.readdir(customerDir);
-      const agents = [];
+  let agents = await db.getAll<Agent>("agents");
 
-      for (const file of files) {
-        if (file.endsWith(".json")) {
-          const content = await fs.readFile(path.join(customerDir, file), "utf-8");
-          const agent = JSON.parse(content);
-          agents.push(agent);
-        }
-      }
-
-      return NextResponse.json({ agents });
-    } catch (error) {
-      // Directory doesn't exist yet
-      return NextResponse.json({ agents: [] });
-    }
-  } catch (error) {
-    console.error("Failed to list agents:", error);
-    return NextResponse.json(
-      { error: "Failed to list agents" },
-      { status: 500 }
-    );
+  if (customerId) {
+    agents = agents.filter((a) => a.customer_id === customerId);
   }
+
+  // Non-admin users only see their own agents
+  if (user.role !== "admin") {
+    agents = agents.filter((a) => a.customer_id === user.userId);
+  }
+
+  return NextResponse.json({ agents });
 }
 
-// POST /api/agents - Create a new agent for a customer
+// POST /api/agents — create agent
 export async function POST(request: NextRequest) {
+  const user = getUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
-    const { customer_id, agent_id, type, channel, model, system_prompt, api_key } = body;
+    const { name, type, channel, model, system_prompt, customer_id } = body;
 
-    if (!customer_id || !agent_id) {
-      return NextResponse.json(
-        { error: "customer_id and agent_id required" },
-        { status: 400 }
-      );
+    if (!name) {
+      return NextResponse.json({ error: "Agent name required" }, { status: 400 });
     }
 
-    const customerDir = path.join(CUSTOMERS_DIR, customer_id);
-    const agentsDir = path.join(customerDir, "agents");
-    
-    // Create directories if they don't exist
-    await fs.mkdir(agentsDir, { recursive: true });
-
-    // Create agent config
-    const agentConfig = {
-      agent_id,
-      customer_id,
-      type: type || "general",
-      channel: channel || "cli",
-      model: {
-        provider: model?.provider || "groq",
-        api_key: api_key,
-        model: model?.model || "llama-3.3-70b-versatile"
-      },
+    const agent: Agent = {
+      id: uuidv4(),
+      customer_id: customer_id || user.userId,
+      name,
+      type: type || "support",
+      channel: channel || "web",
+      model: model || { provider: "groq", model: "llama-3.3-70b-versatile" },
       system_prompt: system_prompt || "You are a helpful AI assistant.",
       status: "active",
-      created_at: new Date().toISOString()
+      messages_count: 0,
+      created_at: new Date().toISOString(),
     };
 
-    const agentFile = path.join(agentsDir, `${agent_id}.json`);
-    await fs.writeFile(agentFile, JSON.stringify(agentConfig, null, 2), "utf-8");
-
-    return NextResponse.json({ 
-      success: true, 
-      message: "Agent created successfully",
-      agent: agentConfig 
-    });
+    await db.create("agents", agent);
+    return NextResponse.json({ success: true, agent }, { status: 201 });
   } catch (error) {
-    console.error("Failed to create agent:", error);
-    return NextResponse.json(
-      { error: "Failed to create agent" },
-      { status: 500 }
-    );
+    console.error("Create agent error:", error);
+    return NextResponse.json({ error: "Failed to create agent" }, { status: 500 });
   }
 }
 
-// DELETE /api/agents - Delete an agent
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const customer_id = searchParams.get("customer_id");
-    const agent_id = searchParams.get("agent_id");
+// PUT /api/agents — update agent
+export async function PUT(request: NextRequest) {
+  const user = getUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!customer_id || !agent_id) {
-      return NextResponse.json(
-        { error: "customer_id and agent_id required" },
-        { status: 400 }
-      );
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "Agent ID required" }, { status: 400 });
     }
 
-    const agentFile = path.join(CUSTOMERS_DIR, customer_id, "agents", `${agent_id}.json`);
-    await fs.unlink(agentFile);
+    const agent = await db.getById<Agent>("agents", id);
+    if (!agent) {
+      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+    }
 
-    return NextResponse.json({ success: true, message: "Agent deleted" });
+    const updated = await db.update<Agent>("agents", id, updates);
+    return NextResponse.json({ success: true, agent: updated });
   } catch (error) {
-    console.error("Failed to delete agent:", error);
-    return NextResponse.json(
-      { error: "Failed to delete agent" },
-      { status: 500 }
-    );
+    console.error("Update agent error:", error);
+    return NextResponse.json({ error: "Failed to update agent" }, { status: 500 });
   }
+}
+
+// DELETE /api/agents — delete agent
+export async function DELETE(request: NextRequest) {
+  const user = getUserFromRequest(request);
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const agentId = searchParams.get("agent_id");
+
+  if (!agentId) {
+    return NextResponse.json({ error: "agent_id required" }, { status: 400 });
+  }
+
+  const deleted = await db.remove("agents", agentId);
+  if (!deleted) {
+    return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, message: "Agent deleted" });
 }

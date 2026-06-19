@@ -19,7 +19,8 @@ export default function Home() {
               <Link href="#features" className="text-gray-300 hover:text-white transition">Features</Link>
               <Link href="#pricing" className="text-gray-300 hover:text-white transition">Pricing</Link>
               <Link href="#demo" className="text-gray-300 hover:text-white transition">Demo</Link>
-              <Link href="/dashboard" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition">
+              <Link href="/login" className="text-gray-300 hover:text-white transition">Sign In</Link>
+              <Link href="/signup" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition">
                 Get Started
               </Link>
             </div>
@@ -41,7 +42,7 @@ export default function Home() {
             Starting at just ₹2,000/month.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/dashboard" className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold transition flex items-center justify-center">
+            <Link href="/signup" className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-4 rounded-xl text-lg font-semibold transition flex items-center justify-center">
               Start Free Trial <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
             <Link href="#demo" className="border border-white/30 hover:bg-white/10 text-white px-8 py-4 rounded-xl text-lg font-semibold transition">
