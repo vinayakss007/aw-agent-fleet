@@ -4,17 +4,8 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-// On Netlify/CI, only /tmp is writable; detect writability or fall back
-import { accessSync, constants } from "fs";
-const DATA_DIR = process.env.DATA_DIR || (() => {
-  const local = path.join(process.cwd(), "..", "data");
-  try {
-    accessSync(path.dirname(local), constants.W_OK);
-    return local;
-  } catch {
-    return "/tmp/data";
-  }
-})();
+// Use /tmp/data on all environments for persistence in serverless
+const DATA_DIR = process.env.DATA_DIR || "/tmp/data";
 
 async function ensureDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });

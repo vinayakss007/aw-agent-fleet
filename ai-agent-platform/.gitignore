@@ -6,3 +6,6 @@ data/
 *.pem
 .DS_Store
 *.log
+token.txt
+deploy.tar.gz
+.netlify/
