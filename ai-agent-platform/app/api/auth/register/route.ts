@@ -23,13 +23,14 @@ export async function POST(request: NextRequest) {
     }
 
     const password_hash = await hashPassword(password);
+    const userCount = users.length;
     const newUser: User = {
       id: uuidv4(),
       email,
       name,
       password_hash,
-      role: "customer",
-      plan: "none",
+      role: userCount === 0 ? "admin" : "customer",
+      plan: userCount === 0 ? "enterprise" : "none",
       created_at: new Date().toISOString(),
     };
 

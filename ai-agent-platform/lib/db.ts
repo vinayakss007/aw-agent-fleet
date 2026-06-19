@@ -4,7 +4,12 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "..", "data");
+// On Netlify serverless, only /tmp is writable; fallback to project-local for dev
+const DATA_DIR = process.env.DATA_DIR || (
+  process.env.NETLIFY
+    ? "/tmp/data"
+    : path.join(process.cwd(), "..", "data")
+);
 
 async function ensureDir(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
